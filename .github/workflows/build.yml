@@ -3,6 +3,8 @@ name: Build LineageOS 16.0 - Amazon Fire HD 10 (suez)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
 
 env:
   BUILD_DIR: /mnt/lineage
