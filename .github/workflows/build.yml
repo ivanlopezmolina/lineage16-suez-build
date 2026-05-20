@@ -115,7 +115,32 @@ jobs:
 
     - name: Apply external/v8 Android.bp fix
       run: |
-        python3 -c "from pathlib import Path;f=Path('/mnt/lineage/external/v8/Android.bp');c=f.read_text();o='// host_ldlibs: [\"-ldl\"],\n    \"';n='// host_ldlibs: [\"-ldl\"],\n    srcs: [\n    \"';p=('v8_torque' in c and 'srcs: [' not in c and o in c);c=c.replace(o,n,1) if p else c;print('v8 Android.bp fix applied' if p else 'v8 fix not needed or already applied');f.write_text(c)"
+        FIX_SCRIPT=/tmp/v8_android_bp_fix.py
+        {
+          printf '%s\n' \
+            "from pathlib import Path" \
+            "" \
+            "f = Path('/mnt/lineage/external/v8/Android.bp')" \
+            "content = f.read_text()" \
+            "" \
+            "old = '// host_ldlibs: [\"-ldl\"],\\n    \"'" \
+            "new = '// host_ldlibs: [\"-ldl\"],\\n    srcs: [\\n    \"'" \
+            "" \
+            "torque_start = content.find('cc_binary_host {')" \
+            "while torque_start != -1:" \
+            "    block_end = content.find('\\n}', torque_start) + 2" \
+            "    block = content[torque_start:block_end]" \
+            "    if 'v8_torque' in block and 'srcs: [' not in block and old in block:" \
+            "        content = content[:torque_start] + block.replace(old, new, 1) + content[block_end:]" \
+            "        print('v8 Android.bp fix applied')" \
+            "        break" \
+            "    torque_start = content.find('cc_binary_host {', torque_start + 1)" \
+            "else:" \
+            "    print('v8 fix not needed or already applied')" \
+            "" \
+            "f.write_text(content)"
+        } > "$FIX_SCRIPT"
+        python3 "$FIX_SCRIPT"
 
     - name: Create CTS stub (not synced in device-only builds)
       run: |
