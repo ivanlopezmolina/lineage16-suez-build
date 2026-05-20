@@ -130,7 +130,7 @@ jobs:
             "while torque_start != -1:" \
             "    block_end = content.find('\\n}', torque_start) + 2" \
             "    block = content[torque_start:block_end]" \
-            "    if 'v8_torque' in block and 'srcs: [' not in block and old in block:" \
+            "    if 'v8_torque' in block and 'srcs: [' not in block:" \
             "        content = content[:torque_start] + block.replace(old, new, 1) + content[block_end:]" \
             "        print('v8 Android.bp fix applied')" \
             "        break" \
