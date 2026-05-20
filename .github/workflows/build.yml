@@ -4,7 +4,7 @@ name: Build LineageOS 16.0 - Amazon Fire HD 10 (suez)
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, 'copilot/**']
 
 env:
   BUILD_DIR: /mnt/lineage
@@ -80,23 +80,24 @@ jobs:
     - name: Add local manifest (device + kernel + vendor)
       run: |
         mkdir -p $BUILD_DIR/.repo/local_manifests
-        printf '%s\n' \
-          '<?xml version="1.0" encoding="UTF-8"?>' \
-          '<manifest>' \
-          '  <project name="lineage16-suez/device_amazon_suez"' \
-          '           path="device/amazon/suez"' \
-          '           remote="github"' \
-          '           revision="lineage-16.0" />' \
-          '  <project name="lineage16-suez/kernel_amazon_suez"' \
-          '           path="kernel/amazon/mt8173/suez"' \
-          '           remote="github"' \
-          '           revision="lineage-16.0" />' \
-          '  <project name="ivanlopezmolina/vendor_amazon_suez"' \
-          '           path="vendor/amazon/suez"' \
-          '           remote="github"' \
-          '           revision="main" />' \
-          '</manifest>' \
-          > $BUILD_DIR/.repo/local_manifests/roomservice.xml
+        {
+          printf '%s\n' \
+            '<?xml version="1.0" encoding="UTF-8"?>' \
+            '<manifest>' \
+            '  <project name="lineage16-suez/device_amazon_suez"' \
+            '           path="device/amazon/suez"' \
+            '           remote="github"' \
+            '           revision="lineage-16.0" />' \
+            '  <project name="lineage16-suez/kernel_amazon_suez"' \
+            '           path="kernel/amazon/mt8173/suez"' \
+            '           remote="github"' \
+            '           revision="lineage-16.0" />' \
+            '  <project name="ivanlopezmolina/vendor_amazon_suez"' \
+            '           path="vendor/amazon/suez"' \
+            '           remote="github"' \
+            '           revision="main" />' \
+            '</manifest>'
+        } > $BUILD_DIR/.repo/local_manifests/roomservice.xml
 
     - name: Sync source tree
       run: |
