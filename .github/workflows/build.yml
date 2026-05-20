@@ -80,23 +80,23 @@ jobs:
     - name: Add local manifest (device + kernel + vendor)
       run: |
         mkdir -p $BUILD_DIR/.repo/local_manifests
-        cat > $BUILD_DIR/.repo/local_manifests/roomservice.xml << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<manifest>
-  <project name="lineage16-suez/device_amazon_suez"
-           path="device/amazon/suez"
-           remote="github"
-           revision="lineage-16.0" />
-  <project name="lineage16-suez/kernel_amazon_suez"
-           path="kernel/amazon/mt8173/suez"
-           remote="github"
-           revision="lineage-16.0" />
-  <project name="ivanlopezmolina/vendor_amazon_suez"
-           path="vendor/amazon/suez"
-           remote="github"
-           revision="main" />
-</manifest>
-EOF
+        printf '%s\n' \
+          '<?xml version="1.0" encoding="UTF-8"?>' \
+          '<manifest>' \
+          '  <project name="lineage16-suez/device_amazon_suez"' \
+          '           path="device/amazon/suez"' \
+          '           remote="github"' \
+          '           revision="lineage-16.0" />' \
+          '  <project name="lineage16-suez/kernel_amazon_suez"' \
+          '           path="kernel/amazon/mt8173/suez"' \
+          '           remote="github"' \
+          '           revision="lineage-16.0" />' \
+          '  <project name="ivanlopezmolina/vendor_amazon_suez"' \
+          '           path="vendor/amazon/suez"' \
+          '           remote="github"' \
+          '           revision="main" />' \
+          '</manifest>' \
+          > $BUILD_DIR/.repo/local_manifests/roomservice.xml
 
     - name: Sync source tree
       run: |
@@ -114,33 +114,7 @@ EOF
 
     - name: Apply external/v8 Android.bp fix
       run: |
-        python3 - << 'PYEOF'
-import sys
-f = '/mnt/lineage/external/v8/Android.bp'
-with open(f) as fp:
-    content = fp.read()
-
-# Find the v8_torque section; locate the spot after the
-# // host_ldlibs comment where srcs: [ is missing.
-old = '// host_ldlibs: ["-ldl"],\n    "'
-new = '// host_ldlibs: ["-ldl"],\n    srcs: [\n    "'
-
-# Only patch if the fix is not already present in v8_torque block
-torque_start = content.find('cc_binary_host {')
-while torque_start != -1:
-    block_end = content.find('\n}', torque_start) + 2
-    block = content[torque_start:block_end]
-    if 'v8_torque' in block and 'srcs: [' not in block:
-        content = content[:torque_start] + block.replace(old, new, 1) + content[block_end:]
-        print("v8 Android.bp fix applied")
-        break
-    torque_start = content.find('cc_binary_host {', torque_start + 1)
-else:
-    print("v8 fix not needed or already applied")
-
-with open(f, 'w') as fp:
-    fp.write(content)
-PYEOF
+        python3 -c "from pathlib import Path;f=Path('/mnt/lineage/external/v8/Android.bp');c=f.read_text();o='// host_ldlibs: [\"-ldl\"],\n    \"';n='// host_ldlibs: [\"-ldl\"],\n    srcs: [\n    \"';p=('v8_torque' in c and 'srcs: [' not in c and o in c);c=c.replace(o,n,1) if p else c;print('v8 Android.bp fix applied' if p else 'v8 fix not needed or already applied');f.write_text(c)"
 
     - name: Create CTS stub (not synced in device-only builds)
       run: |
