@@ -115,7 +115,8 @@ jobs:
 
     - name: Apply external/v8 Android.bp fix
       run: |
-        FIX_SCRIPT=$(mktemp)
+        FIX_SCRIPT=$(mktemp -t v8_android_bp_fix.XXXXXX.py)
+        trap 'rm -f "$FIX_SCRIPT"' EXIT
         {
           printf '%s\n' \
             "from pathlib import Path" \
@@ -142,6 +143,7 @@ jobs:
         } > "$FIX_SCRIPT"
         python3 "$FIX_SCRIPT"
         rm -f "$FIX_SCRIPT"
+        trap - EXIT
 
     - name: Create CTS stub (not synced in device-only builds)
       run: |
