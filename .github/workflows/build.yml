@@ -115,7 +115,7 @@ jobs:
 
     - name: Apply external/v8 Android.bp fix
       run: |
-        FIX_SCRIPT=$(mktemp v8_android_bp_fix.XXXXXX.py)
+        FIX_SCRIPT=$(mktemp)
         {
           printf '%s\n' \
             "from pathlib import Path" \
