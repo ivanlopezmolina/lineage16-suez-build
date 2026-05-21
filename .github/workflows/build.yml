@@ -45,11 +45,18 @@ jobs:
 
     - name: Set Java 8 as default
       run: |
-        sudo update-alternatives --set java \
-          /usr/lib/jvm/java-8-openjdk-amd64/bin/java
-        sudo update-alternatives --set javac \
-          /usr/lib/jvm/java-8-openjdk-amd64/bin/javac
+        JAVA8_BIN=/usr/lib/jvm/java-8-openjdk-amd64/bin
+        if [ ! -x "$JAVA8_BIN/java" ] || [ ! -x "$JAVA8_BIN/javac" ]; then
+          echo "Java 8 binaries not found at $JAVA8_BIN"
+          ls -la /usr/lib/jvm/
+          exit 1
+        fi
+        sudo update-alternatives --install /usr/bin/java java "$JAVA8_BIN/java" 1081
+        sudo update-alternatives --install /usr/bin/javac javac "$JAVA8_BIN/javac" 1081
+        sudo update-alternatives --set java "$JAVA8_BIN/java"
+        sudo update-alternatives --set javac "$JAVA8_BIN/javac"
         java -version
+        javac -version
 
     - name: Set up repo tool
       run: |
