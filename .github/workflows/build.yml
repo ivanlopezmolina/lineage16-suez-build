@@ -97,7 +97,7 @@ jobs:
             '           remote="github"' \
             '           revision="lineage-16.0" />' \
             '  <project name="lineage16-suez/kernel_amazon_suez"' \
-            '           path="kernel/amazon/mt8173/suez"' \
+            '           path="kernel/amazon/suez"' \
             '           remote="github"' \
             '           revision="lineage-16.0" />' \
             '  <project name="ivanlopezmolina/vendor_amazon_suez"' \
