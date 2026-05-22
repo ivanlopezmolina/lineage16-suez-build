@@ -4,7 +4,7 @@ name: Build LineageOS 16.0 - Amazon Fire HD 10 (suez)
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: ['main', 'copilot/**']
 
 env:
   BUILD_DIR: /mnt/lineage
@@ -16,6 +16,16 @@ jobs:
     timeout-minutes: 330
 
     steps:
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends \
+          git-core gnupg flex bison gperf build-essential zip curl \
+          zlib1g-dev libc6-dev-i386 x11proto-core-dev libx11-dev \
+          lib32z1-dev libgl1-mesa-dev libxml2-utils xsltproc unzip \
+          fontconfig python3 python-is-python3 ccache openjdk-8-jdk \
+          bc rsync libssl-dev schedtool lzop
+
     - name: Maximize build space
       uses: easimon/maximize-build-space@master
       with:
@@ -33,23 +43,21 @@ jobs:
         df -h /mnt /
         free -h
 
-    - name: Install build dependencies
-      run: |
-        sudo apt-get update -qq
-        sudo apt-get install -y --no-install-recommends \
-          git-core gnupg flex bison gperf build-essential zip curl \
-          zlib1g-dev libc6-dev-i386 x11proto-core-dev libx11-dev \
-          lib32z1-dev libgl1-mesa-dev libxml2-utils xsltproc unzip \
-          fontconfig python3 python-is-python3 ccache openjdk-8-jdk \
-          bc rsync libssl-dev schedtool lzop
-
     - name: Set Java 8 as default
       run: |
-        sudo update-alternatives --set java \
-          /usr/lib/jvm/java-8-openjdk-amd64/bin/java
-        sudo update-alternatives --set javac \
-          /usr/lib/jvm/java-8-openjdk-amd64/bin/javac
+        JAVA8_BIN=/usr/lib/jvm/java-8-openjdk-amd64/bin
+        JAVA8_PRIORITY=1081
+        if [ ! -x "$JAVA8_BIN/java" ] || [ ! -x "$JAVA8_BIN/javac" ]; then
+          echo "Java 8 binaries not found at $JAVA8_BIN"
+          ls -la /usr/lib/jvm/
+          exit 1
+        fi
+        sudo update-alternatives --install /usr/bin/java java "$JAVA8_BIN/java" "$JAVA8_PRIORITY"
+        sudo update-alternatives --install /usr/bin/javac javac "$JAVA8_BIN/javac" "$JAVA8_PRIORITY"
+        sudo update-alternatives --set java "$JAVA8_BIN/java"
+        sudo update-alternatives --set javac "$JAVA8_BIN/javac"
         java -version
+        javac -version
 
     - name: Set up repo tool
       run: |
@@ -80,23 +88,24 @@ jobs:
     - name: Add local manifest (device + kernel + vendor)
       run: |
         mkdir -p $BUILD_DIR/.repo/local_manifests
-        cat > $BUILD_DIR/.repo/local_manifests/roomservice.xml << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<manifest>
-  <project name="lineage16-suez/device_amazon_suez"
-           path="device/amazon/suez"
-           remote="github"
-           revision="lineage-16.0" />
-  <project name="lineage16-suez/kernel_amazon_suez"
-           path="kernel/amazon/mt8173/suez"
-           remote="github"
-           revision="lineage-16.0" />
-  <project name="ivanlopezmolina/vendor_amazon_suez"
-           path="vendor/amazon/suez"
-           remote="github"
-           revision="main" />
-</manifest>
-EOF
+        {
+          printf '%s\n' \
+            '<?xml version="1.0" encoding="UTF-8"?>' \
+            '<manifest>' \
+            '  <project name="lineage16-suez/device_amazon_suez"' \
+            '           path="device/amazon/suez"' \
+            '           remote="github"' \
+            '           revision="lineage-16.0" />' \
+            '  <project name="lineage16-suez/kernel_amazon_suez"' \
+            '           path="kernel/amazon/suez"' \
+            '           remote="github"' \
+            '           revision="lineage-16.0" />' \
+            '  <project name="ivanlopezmolina/vendor_amazon_suez"' \
+            '           path="vendor/amazon/suez"' \
+            '           remote="github"' \
+            '           revision="main" />' \
+            '</manifest>'
+        } > $BUILD_DIR/.repo/local_manifests/roomservice.xml
 
     - name: Sync source tree
       run: |
@@ -114,33 +123,35 @@ EOF
 
     - name: Apply external/v8 Android.bp fix
       run: |
-        python3 - << 'PYEOF'
-import sys
-f = '/mnt/lineage/external/v8/Android.bp'
-with open(f) as fp:
-    content = fp.read()
-
-# Find the v8_torque section; locate the spot after the
-# // host_ldlibs comment where srcs: [ is missing.
-old = '// host_ldlibs: ["-ldl"],\n    "'
-new = '// host_ldlibs: ["-ldl"],\n    srcs: [\n    "'
-
-# Only patch if the fix is not already present in v8_torque block
-torque_start = content.find('cc_binary_host {')
-while torque_start != -1:
-    block_end = content.find('\n}', torque_start) + 2
-    block = content[torque_start:block_end]
-    if 'v8_torque' in block and 'srcs: [' not in block:
-        content = content[:torque_start] + block.replace(old, new, 1) + content[block_end:]
-        print("v8 Android.bp fix applied")
-        break
-    torque_start = content.find('cc_binary_host {', torque_start + 1)
-else:
-    print("v8 fix not needed or already applied")
-
-with open(f, 'w') as fp:
-    fp.write(content)
-PYEOF
+        FIX_SCRIPT=$(mktemp -t v8_android_bp_fix.XXXXXX.py)
+        trap 'rm -f "$FIX_SCRIPT"' EXIT
+        {
+          printf '%s\n' \
+            "from pathlib import Path" \
+            "" \
+            "f = Path('/mnt/lineage/external/v8/Android.bp')" \
+            "content = f.read_text()" \
+            "" \
+            "old = '// host_ldlibs: [\"-ldl\"],\\n    \"'" \
+            "new = '// host_ldlibs: [\"-ldl\"],\\n    srcs: [\\n    \"'" \
+            "" \
+            "torque_start = content.find('cc_binary_host {')" \
+            "while torque_start != -1:" \
+            "    block_end = content.find('\\n}', torque_start) + 2" \
+            "    block = content[torque_start:block_end]" \
+            "    if 'v8_torque' in block and 'srcs: [' not in block:" \
+            "        content = content[:torque_start] + block.replace(old, new, 1) + content[block_end:]" \
+            "        print('v8 Android.bp fix applied')" \
+            "        break" \
+            "    torque_start = content.find('cc_binary_host {', torque_start + 1)" \
+            "else:" \
+            "    print('v8 fix not needed or already applied')" \
+            "" \
+            "f.write_text(content)"
+        } > "$FIX_SCRIPT"
+        python3 "$FIX_SCRIPT"
+        rm -f "$FIX_SCRIPT"
+        trap - EXIT
 
     - name: Create CTS stub (not synced in device-only builds)
       run: |
@@ -153,6 +164,11 @@ PYEOF
         mkdir -p $CCACHE_DIR
         ccache -M 15G
         ccache -s
+
+    - name: Create libnvram compatibility shim
+      run: |
+        mkdir -p $BUILD_DIR/out/target/product/suez/obj_arm/SHARED_LIBRARIES/libnvram_intermediates
+        : > $BUILD_DIR/out/target/product/suez/obj_arm/SHARED_LIBRARIES/libnvram_intermediates/export_includes
 
     - name: Build LineageOS (mka bacon)
       env:
